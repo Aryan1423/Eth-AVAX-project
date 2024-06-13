@@ -1,27 +1,115 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.18;
+pragma solidity 0.8.18;
 
-contract AryanBank {
+contract aryanCharityPlatform {
+    address public owner;
+    uint public count;
+    struct Campaign {
+        address owner;
+        string name;
+        string description;
+        uint goal;
+        uint total;
+        bool isActive;
+        bool isCompleted;}
 
-    mapping(address => uint) private balances;
-    event Deposit(address indexed account, uint amount);
-    event Withdrawal(address indexed account, uint amount);
+    mapping(uint => Campaign) public campaigns;
+    mapping(uint => mapping(address => uint)) public donations;
 
-    function deposit() external payable {
-        if (msg.value==0) {
-            revert("Deposit amount must be greater than 0");
-        }
-        balances[msg.sender] += msg.value;
-        emit Deposit(msg.sender, msg.value);}
+    event created(uint indexed id, address indexed campaignOwner, string name, uint goal);
+    event recieved(uint indexed id, address indexed donor, uint amount);
+    event refund(uint indexed id, address indexed donor, uint amount);
+    event completed(uint indexed id);
+    event paused(uint indexed id);
+    event resume(uint indexed id);
+    event Updated(uint indexed id, string newName, string newDescription, uint newgoal);
+    event OwnershipTransferred(uint indexed id, address indexed previousOwner, address indexed newOwner);
 
-    function withdraw(uint amount) external {
-        require(amount > 0, "Withdraw amount must be greater than zero");
-        require(balances[msg.sender] >= amount, "Insufficient balance");
-        assert(amount < 2000);
-        balances[msg.sender] -= amount;
-        payable(msg.sender).transfer(amount);
-        emit Withdrawal(msg.sender, amount);}
+    constructor() {
+        owner = msg.sender;}
 
-    function getBalance(address account) external view returns (uint) {
-        return balances[account];
-    }}
+    function create(string memory _name,string memory _Description,uint _goal) external {
+        require(_goal > 0, "Goal amount must be greater than zero");
+        count++;
+        campaigns[count] = Campaign({
+            owner: msg.sender,
+            name: _name,
+            description: _Description,
+            goal: _goal,
+            total: 0,
+            isActive: true,
+            isCompleted: false
+        });
+        emit created(count, msg.sender, _name, _goal);}
+
+    function donate(uint _id) external payable {
+        Campaign storage campaign = campaigns[_id];
+        require(campaign.isActive, "Campaign is not active");
+        require(msg.value > 0, "Donation amount must be greater than zero");
+        require(campaign.total < campaign.goal, "Goal amount already reached");
+        campaign.total += msg.value;
+        donations[_id][msg.sender] += msg.value;
+        emit recieved(_id, msg.sender, msg.value);
+        if (campaign.total >= campaign.goal) {
+            campaign.isActive = false;
+            campaign.isCompleted = true;
+            emit completed(_id);}}
+
+    function refund(uint _id) external {
+        Campaign storage campaign = campaigns[_id];
+        uint donationAmount = donations[_id][msg.sender];
+        require(campaign.isActive, "Campaign is not active");
+        require(donationAmount > 0, "No donations to refund");
+        campaign.total -= donationAmount;
+        donations[_id][msg.sender] = 0;
+        payable(msg.sender).transfer(donationAmount);
+        emit refund(_id, msg.sender, donationAmount);
+        assert(campaign.total >= 0);}
+
+    function withdraw(uint _id) external {
+        Campaign storage campaign = campaigns[_id];
+        require(msg.sender == campaign.owner, "Only the owner can withdraw funds");
+        require(!campaign.isActive, "Campaign is still active");
+        uint balance = address(this).balance;
+        assert(balance > 0); 
+        payable(campaign.owner).transfer(balance);}
+
+    function pause(uint _id) external {
+        Campaign storage campaign = campaigns[_id];
+        require(msg.sender == campaign.owner, "Only the owner can pause the campaign");
+        require(campaign.isActive, "Campaign is already inactive");
+        campaign.isActive = false;
+        emit paused(_id);}
+
+    function resume(uint _id) external {
+        Campaign storage campaign = campaigns[_id];
+        require(msg.sender == campaign.owner, "Only the owner can resume the campaign");
+        require(!campaign.isActive && !campaign.isCompleted, "Campaign is already active or completed");
+        campaign.isActive = true;
+        emit resume(_id);}
+
+    function update(uint _id, string memory _newName, string memory _newDescription, uint _newgoal) external {
+        Campaign storage campaign = campaigns[_id];
+        require(msg.sender == campaign.owner, "Only the owner can update the campaign");
+        require(campaign.isActive, "Campaign is not active");
+        require(_newgoal >= campaign.total, "New goal amount must be greater than or equal to total donations");
+        campaign.name = _newName;
+        campaign.description = _newDescription;
+        campaign.goal = _newgoal;
+        emit Updated(_id, _newName, _newDescription, _newgoal);}
+
+    function transferOwnership(uint _id, address _newOwner) external {
+        Campaign storage campaign = campaigns[_id];
+        require(msg.sender == campaign.owner, "Only the owner can transfer ownership");
+        require(_newOwner != address(0), "Invalid address");
+        address previousOwner = campaign.owner;
+        campaign.owner = _newOwner;
+        emit OwnershipTransferred(_id, previousOwner, _newOwner);}
+
+
+    function getcount() external view returns (uint) {
+        return count;}
+
+    receive() external payable {
+        revert("Direct donations not allowed. Use the donate function.");}
+}

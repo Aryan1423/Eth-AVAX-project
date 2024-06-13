@@ -18,10 +18,10 @@ contract aryanCharityPlatform {
 
     event created(uint indexed id, address indexed campaignOwner, string name, uint goal);
     event recieved(uint indexed id, address indexed donor, uint amount);
-    event refund(uint indexed id, address indexed donor, uint amount);
+    event refunde(uint indexed id, address indexed donor, uint amount);
     event completed(uint indexed id);
     event paused(uint indexed id);
-    event resume(uint indexed id);
+    event resumee(uint indexed id);
     event Updated(uint indexed id, string newName, string newDescription, uint newgoal);
     event OwnershipTransferred(uint indexed id, address indexed previousOwner, address indexed newOwner);
 
@@ -63,7 +63,7 @@ contract aryanCharityPlatform {
         campaign.total -= donationAmount;
         donations[_id][msg.sender] = 0;
         payable(msg.sender).transfer(donationAmount);
-        emit refund(_id, msg.sender, donationAmount);
+        emit refunde(_id, msg.sender, donationAmount);
         assert(campaign.total >= 0);}
 
     function withdraw(uint _id) external {
@@ -86,7 +86,7 @@ contract aryanCharityPlatform {
         require(msg.sender == campaign.owner, "Only the owner can resume the campaign");
         require(!campaign.isActive && !campaign.isCompleted, "Campaign is already active or completed");
         campaign.isActive = true;
-        emit resume(_id);}
+        emit resumee(_id);}
 
     function update(uint _id, string memory _newName, string memory _newDescription, uint _newgoal) external {
         Campaign storage campaign = campaigns[_id];
